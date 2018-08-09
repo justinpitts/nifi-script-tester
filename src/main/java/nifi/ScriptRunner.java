@@ -50,82 +50,33 @@ public class ScriptRunner {
     private static TestRunner runner;
     private static AccessibleScriptingComponentHelper scriptingComponent;
 
-    private static boolean outputAttributes = false;
-    private static boolean outputContent = false;
-    private static boolean outputSuccess = true;
-    private static boolean outputFailure = false;
-    private static String inputFileDir = "";
-    private static String scriptPath = "";
-    private static String modulePaths = "";
-    private static String attrFile = "";
+    static class Options {
+        boolean outputAttributes = false;
+        boolean outputContent = false;
+        String attrFile = "";
+        String modulePaths = "";
+        String scriptPath = "";
+        String inputFileDir = "";
+        boolean outputFailure = false;
+        boolean outputSuccess = true;
+        boolean allOutput = false;
+        boolean allRelations = false;
+        boolean noSuccess = false;
+    }
+
     private static int numFiles = 0;
 
     public static void main(String[] args) {
 
-
-        // Expecting a single arg with the filename, will figure out language from file extension
-        if (args == null || args.length < 1) {
-            System.err.println("Usage: java -jar nifi-script-tester-<version>-all.jar [options] <script file>");
-            System.err.println(" Where options may include:");
-            System.err.println("   -success            Output information about flow files that were transferred to the success relationship. Defaults to true");
-            System.err.println("   -failure            Output information about flow files that were transferred to the failure relationship. Defaults to false");
-            System.err.println("   -no-success         Do not output information about flow files that were transferred to the success relationship. Defaults to false");
-            System.err.println("   -content            Output flow file contents. Defaults to false");
-            System.err.println("   -attrs              Output flow file attributes. Defaults to false");
-            System.err.println("   -all-rels           Output information about flow files that were transferred to any relationship. Defaults to false");
-            System.err.println("   -all                Output content, attributes, etc. about flow files that were transferred to any relationship. Defaults to false");
-            System.err.println("   -input=<directory>  Send each file in the specified directory as a flow file to the script");
-            System.err.println("   -modules=<paths>    Comma-separated list of paths (files or directories) containing script modules/JARs");
-            System.err.println("   -attrfile=<paths>   Path to a properties file specifying attributes to add to incoming flow files.");
-            System.exit(1);
-        }
-
-        // Reset option flags
-        outputAttributes = false;
-        outputContent = false;
-        outputSuccess = true;
-        outputFailure = false;
-        scriptPath = "";
-        inputFileDir = "";
-        attrFile = "";
         numFiles = 0;
-
-        for (String arg : args) {
-            if ("-all".equals(arg)) {
-                outputAttributes = true;
-                outputContent = true;
-                outputSuccess = true;
-                outputFailure = true;
-            } else if ("-all-rels".equals(arg)) {
-                outputSuccess = true;
-                outputFailure = true;
-            } else if ("-success".equals(arg)) {
-                outputSuccess = true;
-            } else if ("-failure".equals(arg)) {
-                outputFailure = true;
-            } else if ("-content".equals(arg)) {
-                outputContent = true;
-            } else if ("-no-success".equals(arg)) {
-                outputSuccess = false;
-            } else if ("-attrs".equals(arg)) {
-                outputAttributes = true;
-            } else if (arg.startsWith("-input=")) {
-                inputFileDir = arg.substring("-input=".length());
-            } else if (arg.startsWith("-modules=")) {
-                modulePaths = arg.substring("-modules=".length());
-            } else if (arg.startsWith("-attrfile=")) {
-                attrFile = arg.substring("-attrfile=".length());
-            } else {
-                scriptPath = arg;
-            }
-        }
-        File scriptFile = new File(scriptPath);
+        Options options = parseCommandLine(args);
+        File scriptFile = new File(options.scriptPath);
         if (!scriptFile.exists()) {
             System.err.println("Script file not found: " + args[0]);
             System.exit(2);
         }
 
-        String extension = scriptPath.substring(scriptPath.lastIndexOf(".") + 1).toLowerCase();
+        String extension = options.scriptPath.substring(options.scriptPath.lastIndexOf(".") + 1).toLowerCase();
         String scriptEngineName = "Groovy";
         if ("js".equals(extension)) {
             scriptEngineName = "ECMAScript";
@@ -146,19 +97,19 @@ public class ScriptRunner {
 
         runner.setValidateExpressionUsage(false);
         runner.setProperty(scriptingComponent.getScriptingComponentHelper().SCRIPT_ENGINE, scriptEngineName);
-        runner.setProperty(ScriptingComponentUtils.SCRIPT_FILE, scriptPath);
-        if (!modulePaths.isEmpty()) {
-            runner.setProperty(ScriptingComponentUtils.MODULES, modulePaths);
+        runner.setProperty(ScriptingComponentUtils.SCRIPT_FILE, options.scriptPath);
+        if (!options.modulePaths.isEmpty()) {
+            runner.setProperty(ScriptingComponentUtils.MODULES, options.modulePaths);
         }
 
         runner.assertValid();
 
         // Get incoming attributes from file (if specified)
         Map<String, String> incomingAttributes = new HashMap<>();
-        Path attrFilePath = Paths.get(attrFile);
-        if (!attrFile.isEmpty()) {
+        Path attrFilePath = Paths.get(options.attrFile);
+        if (!options.attrFile.isEmpty()) {
             if (!Files.exists(attrFilePath)) {
-                System.err.println("Attribute file does not exist: " + attrFile);
+                System.err.println("Attribute file does not exist: " + options.attrFile);
                 System.exit(5);
             } else {
                 try {
@@ -166,14 +117,14 @@ public class ScriptRunner {
                     p.load(Files.newBufferedReader(attrFilePath));
                     p.forEach((k, v) -> incomingAttributes.put(k.toString(), v.toString()));
                 } catch (IOException ioe) {
-                    System.err.println("Could not read properties file: " + attrFile + ", reason: " + ioe.getLocalizedMessage());
+                    System.err.println("Could not read properties file: " + options.attrFile + ", reason: " + ioe.getLocalizedMessage());
                     System.exit(5);
                 }
             }
         }
 
         try {
-            if (inputFileDir.isEmpty()) {
+            if (options.inputFileDir.isEmpty()) {
                 int available = System.in.available();
                 if (available > 0) {
                     InputStreamReader isr = new InputStreamReader(System.in);
@@ -183,13 +134,13 @@ public class ScriptRunner {
                 }
             } else {
                 // Read flow files in from the folder
-                Path inputFiles = Paths.get(inputFileDir);
+                Path inputFiles = Paths.get(options.inputFileDir);
                 if (!Files.exists(inputFiles)) {
-                    System.err.println("Input file directory does not exist: " + inputFileDir);
+                    System.err.println("Input file directory does not exist: " + options.inputFileDir);
                     System.exit(3);
                 }
                 if (!Files.isDirectory(inputFiles)) {
-                    System.err.println("Input file location is not a directory: " + inputFileDir);
+                    System.err.println("Input file location is not a directory: " + options.inputFileDir);
                     System.exit(4);
                 }
                 Files.walkFileTree(inputFiles, new SimpleFileVisitor<Path>() {
@@ -213,21 +164,82 @@ public class ScriptRunner {
         } else {
             runner.run();
         }
-        if (outputSuccess) {
-            outputFlowFilesForRelationship(ExecuteScript.REL_SUCCESS);
+        if (options.outputSuccess) {
+            outputFlowFilesForRelationship(ExecuteScript.REL_SUCCESS, options);
         }
 
-        if (outputFailure) {
-            outputFlowFilesForRelationship(ExecuteScript.REL_FAILURE);
+        if (options.outputFailure) {
+            outputFlowFilesForRelationship(ExecuteScript.REL_FAILURE, options);
         }
     }
 
-    private static void outputFlowFilesForRelationship(Relationship relationship) {
+    private static Options parseCommandLine(String[] args) {
+        // Expecting a single arg with the filename, will figure out language from file extension
+        if (args == null || args.length < 1) {
+            System.err.println("Usage: java -jar nifi-script-tester-<version>-all.jar [options] <script file>");
+            System.err.println(" Where options may include:");
+            System.err.println("   -success            Output information about flow files that were transferred to the success relationship. Defaults to true");
+            System.err.println("   -failure            Output information about flow files that were transferred to the failure relationship. Defaults to false");
+            System.err.println("   -no-success         Do not output information about flow files that were transferred to the success relationship. Defaults to false");
+            System.err.println("   -content            Output flow file contents. Defaults to false");
+            System.err.println("   -attrs              Output flow file attributes. Defaults to false");
+            System.err.println("   -all-rels           Output information about flow files that were transferred to any relationship. Defaults to false");
+            System.err.println("   -all                Output content, attributes, etc. about flow files that were transferred to any relationship. Defaults to false");
+            System.err.println("   -input=<directory>  Send each file in the specified directory as a flow file to the script");
+            System.err.println("   -modules=<paths>    Comma-separated list of paths (files or directories) containing script modules/JARs");
+            System.err.println("   -attrfile=<paths>   Path to a properties file specifying attributes to add to incoming flow files.");
+            System.exit(1);
+        }
+        Options options= new Options();
+
+        // Reset option flags
+        options.outputAttributes = false;
+        options.outputContent = false;
+        options.outputSuccess = true;
+        options.outputFailure = false;
+        options.scriptPath = "";
+        options.inputFileDir = "";
+        options.attrFile = "";
+
+
+        for (String arg : args) {
+            if ("-all".equals(arg)) {
+                options.outputAttributes = true;
+                options.outputContent = true;
+                options.outputSuccess = true;
+                options.outputFailure = true;
+            } else if ("-all-rels".equals(arg)) {
+                options.outputSuccess = true;
+                options.outputFailure = true;
+            } else if ("-success".equals(arg)) {
+                options.outputSuccess = true;
+            } else if ("-failure".equals(arg)) {
+                options.outputFailure = true;
+            } else if ("-content".equals(arg)) {
+                options.outputContent = true;
+            } else if ("-no-success".equals(arg)) {
+                options.outputSuccess = false;
+            } else if ("-attrs".equals(arg)) {
+                options.outputAttributes = true;
+            } else if (arg.startsWith("-input=")) {
+                options.inputFileDir = arg.substring("-input=".length());
+            } else if (arg.startsWith("-modules=")) {
+                options.modulePaths = arg.substring("-modules=".length());
+            } else if (arg.startsWith("-attrfile=")) {
+                options.attrFile = arg.substring("-attrfile=".length());
+            } else {
+                options.scriptPath = arg;
+            }
+        }
+        return options;
+    }
+
+    private static void outputFlowFilesForRelationship(Relationship relationship, Options options) {
 
         List<MockFlowFile> files = runner.getFlowFilesForRelationship(relationship);
         if (files != null) {
             for (MockFlowFile flowFile : files) {
-                if (outputAttributes) {
+                if (options.outputAttributes) {
                     final StringBuilder message = new StringBuilder();
                     message.append("Flow file ").append(flowFile);
                     message.append("\n");
@@ -244,7 +256,7 @@ public class ScriptRunner {
                     message.append(DASHED_LINE);
                     System.out.println(message.toString());
                 }
-                if (outputContent) {
+                if (options.outputContent) {
                     System.out.println(new String(flowFile.toByteArray()));
                 }
                 System.out.println("");
