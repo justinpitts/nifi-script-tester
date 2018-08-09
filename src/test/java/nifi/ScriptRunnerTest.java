@@ -93,4 +93,11 @@ public class ScriptRunnerTest {
         System.setIn(bais);
         ScriptRunner.main(new String[]{"-all", "-attrfile=src/test/resources/attrfiles/incoming_attributes.properties", "src/test/resources/test_attributes_to_propfile.groovy"});
     }
+
+    @Test
+    public void testWithProperties() throws Exception {
+        ByteArrayInputStream bais = new ByteArrayInputStream("Hello World!".getBytes());
+        System.setIn(bais);
+        ScriptRunner.main(new String[]{"-all", "-properties=src/test/resources/properties/simple.properties", "src/test/resources/test_processor_properties.groovy"});
+    }
 }
