@@ -43,6 +43,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 
 /**
@@ -90,6 +91,10 @@ public class ScriptRunner {
 
         @Option(names = {"-no-success"}, description = "Do not output information about flow files that were transferred to the success relationship. Defaults to false.")
         boolean noSuccess = false;
+
+        @Option(names= {"-properties"}, description = "Path to a properties file specifying property values to add to the processor.")
+        Path processorProperties = null;
+
     }
 
     private static int numFiles = 0;
@@ -129,7 +134,9 @@ public class ScriptRunner {
         if (!options.modulePaths.isEmpty()) {
             runner.setProperty(ScriptingComponentUtils.MODULES, options.modulePaths);
         }
-
+        if(options.processorProperties != null) {
+            loadProperties(options.processorProperties).forEach((k,v) -> runner.setProperty(k.toString(), v.toString()));
+        }
         runner.assertValid();
 
         // Get incoming attributes from file (if specified)
@@ -209,9 +216,16 @@ public class ScriptRunner {
         Options options = new Options();
         try {
             options = CommandLine.populateCommand(new Options(), args);
+
+            if(Objects.nonNull(options.processorProperties)) {
+                if(!Files.exists(options.processorProperties)) {
+                    throw new RuntimeException(String.format("%s not found.", options.processorProperties));
+                }
+            }
         } catch (RuntimeException e) {
+            System.err.println(e.getLocalizedMessage());
             CommandLine.usage(new Options(), System.err);
-            System.exit(1);
+            System.exit(5);
         }
 
         if(options.allOutput) {
