@@ -103,12 +103,6 @@ public class ScriptRunner {
 
         Options options = parseCommandLine(args);
 
-        File scriptFile = new File(options.scriptPath);
-        if (!scriptFile.exists()) {
-            System.err.println("Script file not found: " + args[0]);
-            System.exit(2);
-        }
-
         String extension = options.scriptPath.substring(options.scriptPath.lastIndexOf(".") + 1).toLowerCase();
         String scriptEngineName = "Groovy";
         if ("js".equals(extension)) {
@@ -141,14 +135,9 @@ public class ScriptRunner {
 
         // Get incoming attributes from file (if specified)
         Map<String, String> incomingAttributes = new HashMap<>();
-        Path attrFilePath = Paths.get(options.attrFile);
         if (!options.attrFile.isEmpty()) {
-            if (!Files.exists(attrFilePath)) {
-                System.err.println("Attribute file does not exist: " + options.attrFile);
-                System.exit(5);
-            } else {
-                loadProperties(attrFilePath).forEach((k, v) -> incomingAttributes.put(k.toString(), v.toString()));
-            }
+            Path attrFilePath = Paths.get(options.attrFile);
+            loadProperties(attrFilePath).forEach((k, v) -> incomingAttributes.put(k.toString(), v.toString()));
         }
 
         try {
@@ -212,14 +201,30 @@ public class ScriptRunner {
         return props;
     }
 
+    /***
+     * Parse and validate command-line options
+     * @param args
+     * @return a populated Options instance
+     */
     private static Options parseCommandLine(String[] args) {
         Options options = new Options();
         try {
             options = CommandLine.populateCommand(new Options(), args);
 
+            if (!(new File(options.scriptPath).exists())) {
+                System.err.println("Script file not found: " + args[0]);
+                System.exit(2);
+            }
+
             if(Objects.nonNull(options.processorProperties)) {
                 if(!Files.exists(options.processorProperties)) {
                     throw new RuntimeException(String.format("%s not found.", options.processorProperties));
+                }
+            }
+
+            if (!options.attrFile.isEmpty()) {
+                if (!Files.exists(Paths.get(options.attrFile))) {
+                    throw new RuntimeException(String.format("Attribute file does not exist: %s", options.attrFile));
                 }
             }
         } catch (RuntimeException e) {
