@@ -140,14 +140,7 @@ public class ScriptRunner {
                 System.err.println("Attribute file does not exist: " + options.attrFile);
                 System.exit(5);
             } else {
-                try {
-                    Properties p = new Properties();
-                    p.load(Files.newBufferedReader(attrFilePath));
-                    p.forEach((k, v) -> incomingAttributes.put(k.toString(), v.toString()));
-                } catch (IOException ioe) {
-                    System.err.println("Could not read properties file: " + options.attrFile + ", reason: " + ioe.getLocalizedMessage());
-                    System.exit(5);
-                }
+                loadProperties(attrFilePath).forEach((k, v) -> incomingAttributes.put(k.toString(), v.toString()));
             }
         }
 
@@ -199,6 +192,17 @@ public class ScriptRunner {
         if (options.outputFailure) {
             outputFlowFilesForRelationship(ExecuteScript.REL_FAILURE, options);
         }
+    }
+
+    private static Properties loadProperties(Path path) {
+        Properties props = new Properties();
+        try {
+            props.load(Files.newBufferedReader(path));
+        } catch (IOException e) {
+            System.err.println(String.format("Could not read properties file: %s, reason: %s",path, e.getLocalizedMessage()));
+            System.exit(5);
+        }
+        return props;
     }
 
     private static Options parseCommandLine(String[] args) {
