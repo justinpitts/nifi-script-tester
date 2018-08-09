@@ -19,6 +19,11 @@ package nifi;
 import nifi.script.AccessibleExecuteScript;
 import nifi.script.AccessibleScriptingComponentHelper;
 import nifi.script.ScriptingComponentUtils;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
@@ -50,17 +55,40 @@ public class ScriptRunner {
     private static TestRunner runner;
     private static AccessibleScriptingComponentHelper scriptingComponent;
 
+    @Command(name="java -jar nifi-script-runner-<version>.jar ", description="Where options may include:")
     static class Options {
+
+        @Option(names = {"-attrs"}, description = "Output flow file attributes. Defaults to false.")
         boolean outputAttributes = false;
+
+        @Option(names = {"-content"}, description = "Output flow file contents. Defaults to false.")
         boolean outputContent = false;
+
+        @Option(names = {"-attrfile"}, description = "Path to a properties file specifying attributes to add to incoming flow files.")
         String attrFile = "";
+
+        @Option(names = {"-modules"}, description = "Comma-separated list of paths (files or directories) containing script modules/JARs.")
         String modulePaths = "";
+
+        @Parameters(arity="1", paramLabel="script file", description="The script to execute.")
         String scriptPath = "";
+
+        @Option(names = {"-input"}, description = "Send each file in the specified directory as a flow file to the script.")
         String inputFileDir = "";
+
+        @Option(names = {"-failure"}, description = "Output information about flow files that were transferred to the failure relationship. Defaults to false.")
         boolean outputFailure = false;
+
+        @Option(names = {"-success"}, description = "Output information about flow files that were transferred to the success relationship. Defaults to true.")
         boolean outputSuccess = true;
+
+        @Option(names = {"-all"}, description = "Output content, attributes, etc. about flow files that were transferred to any relationship. Defaults to false.")
         boolean allOutput = false;
+
+        @Option(names = {"-all-rels"}, description = "Output information about flow files that were transferred to any relationship. Defaults to false.")
         boolean allRelations = false;
+
+        @Option(names = {"-no-success"}, description = "Do not output information about flow files that were transferred to the success relationship. Defaults to false.")
         boolean noSuccess = false;
     }
 
@@ -68,8 +96,8 @@ public class ScriptRunner {
 
     public static void main(String[] args) {
 
-        numFiles = 0;
         Options options = parseCommandLine(args);
+
         File scriptFile = new File(options.scriptPath);
         if (!scriptFile.exists()) {
             System.err.println("Script file not found: " + args[0]);
@@ -174,62 +202,28 @@ public class ScriptRunner {
     }
 
     private static Options parseCommandLine(String[] args) {
-        // Expecting a single arg with the filename, will figure out language from file extension
-        if (args == null || args.length < 1) {
-            System.err.println("Usage: java -jar nifi-script-tester-<version>-all.jar [options] <script file>");
-            System.err.println(" Where options may include:");
-            System.err.println("   -success            Output information about flow files that were transferred to the success relationship. Defaults to true");
-            System.err.println("   -failure            Output information about flow files that were transferred to the failure relationship. Defaults to false");
-            System.err.println("   -no-success         Do not output information about flow files that were transferred to the success relationship. Defaults to false");
-            System.err.println("   -content            Output flow file contents. Defaults to false");
-            System.err.println("   -attrs              Output flow file attributes. Defaults to false");
-            System.err.println("   -all-rels           Output information about flow files that were transferred to any relationship. Defaults to false");
-            System.err.println("   -all                Output content, attributes, etc. about flow files that were transferred to any relationship. Defaults to false");
-            System.err.println("   -input=<directory>  Send each file in the specified directory as a flow file to the script");
-            System.err.println("   -modules=<paths>    Comma-separated list of paths (files or directories) containing script modules/JARs");
-            System.err.println("   -attrfile=<paths>   Path to a properties file specifying attributes to add to incoming flow files.");
+        Options options = new Options();
+        try {
+            options = CommandLine.populateCommand(new Options(), args);
+        } catch (RuntimeException e) {
+            CommandLine.usage(new Options(), System.err);
             System.exit(1);
         }
-        Options options= new Options();
 
-        // Reset option flags
-        options.outputAttributes = false;
-        options.outputContent = false;
-        options.outputSuccess = true;
-        options.outputFailure = false;
-        options.scriptPath = "";
-        options.inputFileDir = "";
-        options.attrFile = "";
+        if(options.allOutput) {
+            options.outputAttributes = true;
+            options.outputContent = true;
+            options.outputSuccess = true;
+            options.outputFailure = true;
+        }
 
+        if(options.allRelations) {
+            options.outputSuccess = true;
+            options.outputFailure = true;
+        }
 
-        for (String arg : args) {
-            if ("-all".equals(arg)) {
-                options.outputAttributes = true;
-                options.outputContent = true;
-                options.outputSuccess = true;
-                options.outputFailure = true;
-            } else if ("-all-rels".equals(arg)) {
-                options.outputSuccess = true;
-                options.outputFailure = true;
-            } else if ("-success".equals(arg)) {
-                options.outputSuccess = true;
-            } else if ("-failure".equals(arg)) {
-                options.outputFailure = true;
-            } else if ("-content".equals(arg)) {
-                options.outputContent = true;
-            } else if ("-no-success".equals(arg)) {
-                options.outputSuccess = false;
-            } else if ("-attrs".equals(arg)) {
-                options.outputAttributes = true;
-            } else if (arg.startsWith("-input=")) {
-                options.inputFileDir = arg.substring("-input=".length());
-            } else if (arg.startsWith("-modules=")) {
-                options.modulePaths = arg.substring("-modules=".length());
-            } else if (arg.startsWith("-attrfile=")) {
-                options.attrFile = arg.substring("-attrfile=".length());
-            } else {
-                options.scriptPath = arg;
-            }
+        if(options.noSuccess) {
+            options.outputSuccess = false;
         }
         return options;
     }
@@ -265,4 +259,3 @@ public class ScriptRunner {
         }
     }
 }
-

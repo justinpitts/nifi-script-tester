@@ -59,7 +59,7 @@ public class ScriptRunnerTest {
 
     @Test
     public void testRouteToFailure() throws Exception {
-        ScriptRunner.main(new String[]{"-failure -no-success", "src/test/resources/test_route_to_fail.groovy"});
+        ScriptRunner.main(new String[]{"-failure","-no-success", "src/test/resources/test_route_to_fail.groovy"});
     }
 
     @Test
